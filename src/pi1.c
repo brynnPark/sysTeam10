@@ -239,10 +239,17 @@ void* read_data_from_server(void* arg){
   
   Sock_data* data = (Sock_data*)arg;
   int str_len;
-  
+  fd_set read_fds;
   while(1){
     
-    // 서버로 부터 data받음
+    /* select함수로 server의 상태를 계속 확인
+		   만약 server가 종료되면 str_len에 0이 적힐 것이다.*/
+		FD_ZERO(&read_fds);
+		FD_SET(data->sock, &read_fds);
+
+		select(data->sock + 1, &read_fds, NULL, NULL, NULL);
+
+    //get server data
     str_len = recv(data->sock,read_data,40,0);
     if(str_len<=0){
       close(data->sock);
@@ -261,19 +268,19 @@ void* heater_and_fan_control(void* arg){
     if(strcmp(read_data,"on_H_off_F")==0){
     
       if(GPIOWrite(POUT_R1,1)==-1){
-        return 3;
+        exit(3);
       }
       if(GPIOWrite(POUT_F2,0)==-1){
-        return 3;
+        exit(3);
       }
     }
     else if(strcmp(read_data,"off_H_on_F")==0){
     
       if(GPIOWrite(POUT_R1,0)==-1){
-        return 3;
+        exit(3);
       }
       if(GPIOWrite(POUT_F2,1)==-1){
-        return 3;
+        exit(3);
       }
     }
     
@@ -290,13 +297,13 @@ void* water_push_control(void* arg){
     if(strcmp(read_data,"on_WP")==0){
     
       if(GPIOWrite(POUT_W2,1)==-1){
-        return 3;
+        exit(3);
       }
     }
     else if(strcmp(read_data,"off_WP")==0){
     
       if(GPIOWrite(POUT_W2,0)==-1){
-        return 3;
+        exit(3);
       }
     }
     
@@ -313,13 +320,13 @@ void* humidifier_control(void* arg){
     if(strcmp(read_data,"on_HUMI")==0){
     
       if(GPIOWrite(POUT_R2,1)==-1){
-        return 3;
+        exit(3);
       }
     }
     else if(strcmp(read_data,"off_HUMI")==0){
     
       if(GPIOWrite(POUT_R2,0)==-1){
-        return 3;
+        exit(3);
       }
     }
     
@@ -330,7 +337,7 @@ void* humidifier_control(void* arg){
 void unexport(){
 
   if(GPIOUnexport(POUT_R1)==-1||GPIOUnexport(POUT_R2)==-1||GPIOUnexport(POUT_F1)==-1||GPIOUnexport(POUT_F2)==-1||GPIOUnexport(POUT_W1)==-1||GPIOUnexport(POUT_W2)==-1){
-    return 4;
+    exit(4);
   }
 
 }
