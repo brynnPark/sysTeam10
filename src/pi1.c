@@ -29,7 +29,6 @@
    워터펌프 조절: on_WP, off_WP 
    가습기 조절: on_HUMI, off_HUMI */
 
-
 typedef struct s_sock_data {
 	char name[20];
 	int sock;
@@ -151,7 +150,7 @@ void* heater_and_fan_control(void* arg);
 void* water_push_control(void* arg);
 void* humidifier_control(void* arg);
 void* read_data_from_server(void* arg);
-
+void unexport();
 
 int main(int argc, char* argv[]) {
   
@@ -189,7 +188,6 @@ int main(int argc, char* argv[]) {
     return 2;
   }
 
-
   GPIOWrite(POUT_F1,0);
   GPIOWrite(POUT_W1,0);
 
@@ -214,7 +212,6 @@ int main(int argc, char* argv[]) {
 		perror("thread create error : ");
 		exit(0);
 	}
-
 
 	// tread_2에서 워터펌프조절 
 	thr_id = pthread_create(&p_thread[1], NULL, water_push_control, (void *)&p2);
@@ -241,9 +238,6 @@ pthread_mutex_t data_mutex = PTHREAD_MUTEX_INITIALIZER;
 void* read_data_from_server(void* arg){
   
   Sock_data* data = (Sock_data*)arg;
-  
-
-  char readdata[40];
   int str_len;
   
   while(1){
@@ -252,49 +246,91 @@ void* read_data_from_server(void* arg){
     str_len = recv(data->sock,read_data,40,0);
     if(str_len<=0){
       close(data->sock);
+      unexport();
       exit(0);
     }
-
   }
 }
 
 void* heater_and_fan_control(void* arg){
+  
   while(1){
+    
     pthread_mutex_lock(&data_mutex);
+    
     if(strcmp(read_data,"on_H_off_F")==0){
-      GPIOWrite(POUT_R1,1);
-      GPIOWrite(POUT_F2,0);
+    
+      if(GPIOWrite(POUT_R1,1)==-1){
+        return 3;
+      }
+      if(GPIOWrite(POUT_F2,0)==-1){
+        return 3;
+      }
     }
     else if(strcmp(read_data,"off_H_on_F")==0){
-      GPIOWrite(POUT_R1,0);
-      GPIOWrite(POUT_F2,1);
+    
+      if(GPIOWrite(POUT_R1,0)==-1){
+        return 3;
+      }
+      if(GPIOWrite(POUT_F2,1)==-1){
+        return 3;
+      }
     }
+    
     pthread_mutex_unlock(&data_mutex);
   }
 }
+
 void* water_push_control(void* arg){
+  
   while(1){
+    
     pthread_mutex_lock(&data_mutex);
+    
     if(strcmp(read_data,"on_WP")==0){
-      GPIOWrite(POUT_W2,1);
+    
+      if(GPIOWrite(POUT_W2,1)==-1){
+        return 3;
+      }
     }
     else if(strcmp(read_data,"off_WP")==0){
-      GPIOWrite(POUT_W2,0);
+    
+      if(GPIOWrite(POUT_W2,0)==-1){
+        return 3;
+      }
     }
+    
     pthread_mutex_unlock(&data_mutex);
   }
 }
+
 void* humidifier_control(void* arg){
+  
   while(1){
+    
     pthread_mutex_lock(&data_mutex);
+    
     if(strcmp(read_data,"on_HUMI")==0){
-      GPIOWrite(POUT_R2,1);
+    
+      if(GPIOWrite(POUT_R2,1)==-1){
+        return 3;
+      }
     }
     else if(strcmp(read_data,"off_HUMI")==0){
-      GPIOWrite(POUT_R2,0);
+    
+      if(GPIOWrite(POUT_R2,0)==-1){
+        return 3;
+      }
     }
+    
     pthread_mutex_unlock(&data_mutex);
   }
 }
 
+void unexport(){
 
+  if(GPIOUnexport(POUT_R1)==-1||GPIOUnexport(POUT_R2)==-1||GPIOUnexport(POUT_F1)==-1||GPIOUnexport(POUT_F2)==-1||GPIOUnexport(POUT_W1)==-1||GPIOUnexport(POUT_W2)==-1){
+    return 4;
+  }
+
+}
