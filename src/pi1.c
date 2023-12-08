@@ -24,6 +24,12 @@
 #define VALUE_MAX 40
 #define DIRECTION_MAX 128
 
+/* server로 부터 받는 data 목록
+   온도조절: on_H_off_F, off_H_on_F 
+   워터펌프 조절: on_WP, off_WP 
+   가습기 조절: on_HUMI, off_HUMI */
+
+
 typedef struct s_sock_data {
 	char name[20];
 	int sock;
@@ -202,7 +208,7 @@ int main(int argc, char* argv[]) {
 	strcpy(pM.name, "thread_M");
 	pM.sock = sock;
 
-	// tread_1에서는 
+	// tread_1에서 온도조절
 	thr_id = pthread_create(&p_thread[0], NULL, heater_and_fan_control, (void *)&p1);
 	if (thr_id < 0) {
 		perror("thread create error : ");
@@ -210,19 +216,21 @@ int main(int argc, char* argv[]) {
 	}
 
 
-	// tread_2에서는 
+	// tread_2에서 워터펌프조절 
 	thr_id = pthread_create(&p_thread[1], NULL, water_push_control, (void *)&p2);
 	if (thr_id < 0) {
 		perror("thread create error : ");
 		exit(0);
 	}
-
-  thr_id = pthread_create(&p_thread[2], NULL, humidifier_control, (void *)&p3);
+	
+	// tread_3에서 가습기조절
+  	thr_id = pthread_create(&p_thread[2], NULL, humidifier_control, (void *)&p3);
 	if (thr_id < 0) {
 		perror("thread create error : ");
 		exit(0);
 	}
-
+	
+  // thread_M에서 서버로부터 data를 받음
   read_data_from_server((void*)&pM);
 
 }
