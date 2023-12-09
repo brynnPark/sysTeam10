@@ -28,7 +28,7 @@
 */
 
 
-static char data[50]; 
+static char data[1024]; 
 
 void error_handling(char *message) {
   fputs(message, stderr);
@@ -121,57 +121,71 @@ void* data_reading(void* arg);
 
 
 int main(int argc, char *argv[]) {
-  int sock;
-  struct sockaddr_in serv_addr;
+  int serv_sock, clnt_sock = -1;
+  struct sockaddr_in serv_addr, clnt_addr;
+  socklen_t clnt_addr_size;
 
-  if (argc != 3) {
-    printf("Usage : %s <IP> <port>\n", argv[0]);
-    exit(1);
+  if (argc != 2) {
+    printf("Usage : %s <port>\n", argv[0]);
   }
-  /*
-  * socket
-  */
-  sock = socket(PF_INET, SOCK_STREAM, 0);
-  if (sock == -1) error_handling("socket() error");
+
+  serv_sock = socket(PF_INET, SOCK_STREAM, 0);
+  if (serv_sock == -1) error_handling("socket() error");
 
   memset(&serv_addr, 0, sizeof(serv_addr));
   serv_addr.sin_family = AF_INET;
-  serv_addr.sin_addr.s_addr = inet_addr(argv[1]);
-  serv_addr.sin_port = htons(atoi(argv[2]));
+  serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+  serv_addr.sin_port = htons(atoi(argv[1]));
 
-  if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
-    error_handling("connect() error");
+  if (bind(serv_sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
+    error_handling("bind() error");
+
+  if (listen(serv_sock, 5) == -1) error_handling("listen() error");
+
+  if (clnt_sock < 0) {
+    clnt_addr_size = sizeof(clnt_addr);
+    clnt_sock =
+        accept(serv_sock, (struct sockaddr *)&clnt_addr, &clnt_addr_size);
+    if (clnt_sock == -1) error_handling("accept() error");
+  }
 
   printf("Connection established\n");
 
   /*
-  * GPIO
+     GPIO
   */
   if (-1 == GPIOExport(POUT)) return (1);
 
   if (-1 == GPIODirection(POUT, OUT)) return (2);
 
-  pthread_t read_data_thread;
-  int read_data_pthread_id;
-
   pthread_t led_thread;
   int led_pthread_id;
-
-  //reading data thread
-  read_data_pthread_id = pthread_create(&led_thread, NULL, data_reading,(void*)&sock);  
-  if (read_data_pthread_id != 0) {
-        error_handling("read_data_thread_error");
-    }
-
+ 
   //lightening led thread
   led_pthread_id = pthread_create(&led_thread, NULL, led_lightening, NULL);  
   if (led_pthread_id != 0) {
         error_handling("led_thread_error");
     }
 
+  // data_reading
+  int read_check = 0;
+
+  while(1){
+
+    read_check = recv(clnt_sock,data,sizeof(data),0);
+
+    //printf("%s\n",data);
+
+    if(read_check <=  0){
+      close(clnt_sock);
+      GPIOUnexport(POUT);
+    }
+  }
 }
 
 void* led_lightening(void* arg){
+
+    //printf("ok1\n");
 
     while(1){
 
@@ -187,25 +201,10 @@ void* led_lightening(void* arg){
         if(GPIOWrite(POUT,0) == -1){
           error_handling("led_write_error");
         }
-
       }
     }
 }
 
-void* data_reading(void* arg){
 
-  int sock = *((int*) arg);
-  int value_read;
-
-  while(1){
-
-    value_read = read(sock, data, 50);
-
-    if(value_read <= 0){
-
-      close(sock);
-
-      GPIOUnexport(POUT);
-    }
-  }
-}
+  
+  
