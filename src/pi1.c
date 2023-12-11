@@ -154,31 +154,33 @@ void unexport();
 
 int main(int argc, char* argv[]) {
   
-  // establish connection to server
-	int sock;
-	struct sockaddr_in serv_addr;
-	int light = 0;
-	
-	// command는 반드시 ./<파일 이름> <IP> <port>가 되어야한다. 
-	if (argc != 3) { 
-		printf("Usage : %s <IP> <port>\n", argv[0]);
-		exit(1);
-	}
+  int state = 1;
+  int prev_state = 1;
 
-	// socket을 만듬
-	sock = socket(PF_INET, SOCK_STREAM, 0);
-	if (sock == -1) error_handling("socket() error");
+  int serv_sock, clnt_sock = -1;
+  struct sockaddr_in serv_addr, clnt_addr;
+  socklen_t clnt_addr_size;
 
-	memset(&serv_addr, 0, sizeof(serv_addr));
-	serv_addr.sin_family = AF_INET;
-	serv_addr.sin_addr.s_addr = inet_addr(argv[1]);
-	serv_addr.sin_port = htons(atoi(argv[2]));
+  // socket을 만듬
+  serv_sock = socket(PF_INET, SOCK_STREAM, 0); 
+  if (serv_sock == -1) error_handling("socket() error");
 
-	// server와 socket연결
-	if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
-		error_handling("connect() error");
+  memset(&serv_addr, 0, sizeof(serv_addr));
+  serv_addr.sin_family = AF_INET;
+  serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+  serv_addr.sin_port = htons(atoi(argv[1]));
 
-	printf("Connection established\n");
+	// bind
+  if (bind(serv_sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1) 
+	error_handling("bind() error");
+
+  // listen
+  if (listen(serv_sock, 5) == -1) error_handling("listen() error"); 
+
+  clnt_addr_size = sizeof(clnt_addr);
+  clnt_sock = accept(serv_sock, (struct sockaddr *)&clnt_addr, &clnt_addr_size);
+  printf("Connection established\n");
+		
 
   if (GPIOExport(POUT_R1) == -1||GPIOExport(POUT_R2) == -1||GPIOExport(POUT_F1) == -1||GPIOExport(POUT_F2) == -1||GPIOExport(POUT_W1) == -1||GPIOExport(POUT_W2) == -1) {
     return 1;
@@ -191,41 +193,41 @@ int main(int argc, char* argv[]) {
   GPIOWrite(POUT_F1,0);
   GPIOWrite(POUT_W1,0);
 
-	pthread_t p_thread[3];
-	int thr_id;
-	int status;
+  pthread_t p_thread[3];
+  int thr_id;
+  int status;
 	
-	// thread함수에 들어갈 값들
-	Sock_data p1, p2, p3, pM;
-	strcpy(p1.name, "thread_1");
-	p1.sock = sock;
-	strcpy(p2.name, "thread_2");
-	p2.sock = sock;
-	strcpy(p3.name, "thread_3");
-	p3.sock = sock;
-	strcpy(pM.name, "thread_M");
-	pM.sock = sock;
+  // thread함수에 들어갈 값들
+  Sock_data p1, p2, p3, pM;
+  strcpy(p1.name, "thread_1");
+  p1.sock = clnt_sock;
+  strcpy(p2.name, "thread_2");
+  p2.sock = clnt_sock;
+  strcpy(p3.name, "thread_3");
+  p3.sock = clnt_sock;
+  strcpy(pM.name, "thread_M");
+  pM.sock = clnt_sock;
 
-	// tread_1에서 온도조절
-	thr_id = pthread_create(&p_thread[0], NULL, heater_and_fan_control, (void *)&p1);
-	if (thr_id < 0) {
-		perror("thread create error : ");
-		exit(0);
-	}
+  // tread_1에서 온도조절
+  thr_id = pthread_create(&p_thread[0], NULL, heater_and_fan_control, (void *)&p1);
+  if (thr_id < 0) {
+	perror("thread create error : ");
+	exit(0);
+  }
 
-	// tread_2에서 워터펌프조절 
-	thr_id = pthread_create(&p_thread[1], NULL, water_push_control, (void *)&p2);
-	if (thr_id < 0) {
-		perror("thread create error : ");
-		exit(0);
-	}
+  // tread_2에서 워터펌프조절 
+  thr_id = pthread_create(&p_thread[1], NULL, water_push_control, (void *)&p2);
+  if (thr_id < 0) {
+	perror("thread create error : ");
+	exit(0);
+  }
 	
-	// tread_3에서 가습기조절
-  	thr_id = pthread_create(&p_thread[2], NULL, humidifier_control, (void *)&p3);
-	if (thr_id < 0) {
-		perror("thread create error : ");
-		exit(0);
-	}
+  // tread_3에서 가습기조절
+  thr_id = pthread_create(&p_thread[2], NULL, humidifier_control, (void *)&p3);
+  if (thr_id < 0) {
+	perror("thread create error : ");
+	exit(0);
+  }
 	
   // thread_M에서 서버로부터 data를 받음
   read_data_from_server((void*)&pM);
