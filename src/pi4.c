@@ -265,11 +265,11 @@ int main(int argc,char* argv[]){
                                 break;
                             case 1:
                                 humid_cur = atoi(sliceString(recvmsg_from_pi3, start, i, sensor_value));                            
-                                printf("%d\n",light_cur);
+                                printf("%d\n",humid_cur);
                                 break;
                             case 2:
                                 water_cur = atoi(sliceString(recvmsg_from_pi3, start, i, sensor_value));
-                                printf("%d\n",humid_cur);
+                                printf("%d\n",water_cur);
                                 break;
                             case 3:
                                 soil_cur = atoi(sliceString(recvmsg_from_pi3, start, i, sensor_value));
@@ -277,7 +277,7 @@ int main(int argc,char* argv[]){
                                 break;
                             case 4:
                                 light_cur = atoi(sliceString(recvmsg_from_pi3, start, i, sensor_value));
-                                printf("%d\n",soil_cur);
+                                printf("%d\n",light_cur);
                                 break;
                         }
                         start=i+1;
