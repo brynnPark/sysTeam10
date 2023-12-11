@@ -20,7 +20,9 @@
 #define LOW 0
 #define HIGH 1
 
-#define POUT 17
+#define POUT1 17
+#define POUT2 27
+#define POUT3 22
 
 /*
   서버로부터 받는 data
@@ -117,8 +119,6 @@ static int GPIOUnexport(int pin) {
 }
 
 void* led_lightening(void* arg);
-void* data_reading(void* arg);
-
 
 int main(int argc, char *argv[]) {
   int serv_sock, clnt_sock = -1;
@@ -154,9 +154,9 @@ int main(int argc, char *argv[]) {
   /*
      GPIO
   */
-  if (-1 == GPIOExport(POUT)) return (1);
+  if (-1 == GPIOExport(POUT1) || -1 == GPIOExport(POUT2) || -1 == GPIOExport(POUT3)) return (1);
 
-  if (-1 == GPIODirection(POUT, OUT)) return (2);
+  if (-1 == GPIODirection(POUT1, OUT) || -1 == GPIODirection(POUT2, OUT) || (-1 == GPIODirection(POUT3, OUT))) return (2);
 
   pthread_t led_thread;
   int led_pthread_id;
@@ -171,14 +171,16 @@ int main(int argc, char *argv[]) {
   int read_check = 0;
 
   while(1){
-
+    
     read_check = recv(clnt_sock,data,sizeof(data),0);
 
     //printf("%s\n",data);
 
     if(read_check <=  0){
+
       close(clnt_sock);
-      GPIOUnexport(POUT);
+      if(GPIOWrite(POUT1, 0) == -1 || GPIOWrite(POUT2, 0) == -1 || GPIOWrite(POUT3, 0) == -1) return (3);
+      if( -1 == GPIOUnexport(POUT1) || -1 == GPIOUnexport(POUT2) || -1 == GPIOUnexport(POUT3)) return (4);
     }
   }
 }
@@ -190,15 +192,13 @@ void* led_lightening(void* arg){
     while(1){
 
       if(strcmp(data,"on_led") == 0){
-
-        if(GPIOWrite(POUT,1) == -1){
+        if(GPIOWrite(POUT1,1) == -1 || GPIOWrite(POUT2,1) == -1 || GPIOWrite(POUT3,1) == -1){
           error_handling("led_write_error");
         }
 
       }
       else if (strcmp(data,"off_led") == 0){
-
-        if(GPIOWrite(POUT,0) == -1){
+        if(GPIOWrite(POUT1,0) == -1 || GPIOWrite(POUT2,0) == -1 || GPIOWrite(POUT3,0) == -1){
           error_handling("led_write_error");
         }
       }
