@@ -8,15 +8,18 @@ int state=FIRST1;
 int fd_pi1[2];
 int fd_pi2[2];
 Pipe pi1,pi2;
+
 int temp_setter=50;
 int light_setter=150;
 int humid_setter=250;
 int soil_setter=350;
+int water_setter=100;
 
 int temp_cur=0;
 int light_cur=0;
 int humid_cur=0;
 int soil_cur=0;
+int water_cur=0;
 
 char on_temp[MAX_LEN] = "on_H_off_F";
 char off_temp[MAX_LEN] = "off_H_on_F";           
@@ -33,10 +36,10 @@ char off_soil[MAX_LEN] = "off_WP";
 void* button_listener(void* arg){
     while(1){
         if(read_button(LEFT)){
-            state=do_action(LEFT,state,temp_setter,light_setter, humid_setter, soil_setter,temp_cur,light_cur,humid_cur,soil_cur);
+            state=do_action(LEFT,state,temp_setter,light_setter, humid_setter, soil_setter,water_setter,temp_cur,light_cur,humid_cur,soil_cur,water_cur);
         }
         else if(read_button(RIGHT)){
-            state=do_action(RIGHT,state,temp_setter,light_setter, humid_setter, soil_setter,temp_cur,light_cur,humid_cur,soil_cur);
+            state=do_action(RIGHT,state,temp_setter,light_setter, humid_setter, soil_setter,water_setter,temp_cur,light_cur,humid_cur,soil_cur,water_cur);
         }
         else if(read_button(UP)){
             switch(state){
@@ -52,8 +55,11 @@ void* button_listener(void* arg){
                 case SOIL:
                     soil_setter++;
                     break;
+                case WATER:
+                    water_setter++;
+                    break;
             }
-            state=do_action(UP,state,temp_setter,light_setter, humid_setter, soil_setter,temp_cur,light_cur,humid_cur,soil_cur);
+            state=do_action(UP,state,temp_setter,light_setter, humid_setter, soil_setter,water_setter,temp_cur,light_cur,humid_cur,soil_cur,water_cur);
         }
         else if(read_button(DOWN)){
             switch(state){
@@ -69,8 +75,11 @@ void* button_listener(void* arg){
                 case SOIL:
                     soil_setter--;
                     break;
+                case WATER:
+                    water_setter--;
+                    break;
             }
-            state=do_action(DOWN,state,temp_setter,light_setter, humid_setter, soil_setter,temp_cur,light_cur,humid_cur,soil_cur);
+            state=do_action(DOWN,state,temp_setter,light_setter, humid_setter, soil_setter,water_setter,temp_cur,light_cur,humid_cur,soil_cur,water_cur);
 
         }
         sleep(0.1);
@@ -239,7 +248,7 @@ int main(int argc,char* argv[]){
             printf("Connection Success\n");
 
 
-            int numofsensors=4; // 받아오는 센서값이 4개라고 가정(온도,조도, 습도, 토양수분) >> 이 순서대로 들어옴 ex) "111$222$333$444$"
+            int numofsensors=5; // 받아오는 센서값이 4개라고 가정(온도,습도, 물수위, 토양수분, 조도) >> 이 순서대로 들어옴 ex) "111$222$333$444$555$"
             char sensor_value[20];
             while(1){
                 ssize_t cnt = recv(client_socket,recvmsg_from_pi3,sizeof(recvmsg_from_pi3),0); //센서값 받아오기
@@ -255,15 +264,19 @@ int main(int argc,char* argv[]){
                                 printf("%d\n",temp_cur);
                                 break;
                             case 1:
-                                light_cur = atoi(sliceString(recvmsg_from_pi3, start, i, sensor_value));
+                                humid_cur = atoi(sliceString(recvmsg_from_pi3, start, i, sensor_value));                            
                                 printf("%d\n",light_cur);
                                 break;
                             case 2:
-                                humid_cur = atoi(sliceString(recvmsg_from_pi3, start, i, sensor_value));
+                                water_cur = atoi(sliceString(recvmsg_from_pi3, start, i, sensor_value));
                                 printf("%d\n",humid_cur);
                                 break;
                             case 3:
                                 soil_cur = atoi(sliceString(recvmsg_from_pi3, start, i, sensor_value));
+                                printf("%d\n",soil_cur);
+                                break;
+                            case 4:
+                                light_cur = atoi(sliceString(recvmsg_from_pi3, start, i, sensor_value));
                                 printf("%d\n",soil_cur);
                                 break;
                         }
@@ -301,7 +314,7 @@ int main(int argc,char* argv[]){
                     write(pi1.fd[1],off_humid,sizeof(off_humid));
                 }
 
-                if (soil_cur < soil_setter){
+                if (water_cur>=water_setter && soil_cur < soil_setter){
                     write(pi1.fd[1],on_soil,sizeof(on_soil));
                 }
                 else{
