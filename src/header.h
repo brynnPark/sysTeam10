@@ -15,14 +15,17 @@
 #include <pthread.h>
 
 #define MAX_LEN 1024
+
 #define FIRST1 0
 #define FIRST2 1
 #define SECOND1 2
 #define SECOND2 3
+#define THIRD 9
 #define TEMP 4
 #define LIGHT 5
 #define HUMID 6
 #define SOIL 7
+#define WATER 8
 
 #define UP 100
 #define DOWN 200
@@ -116,6 +119,10 @@ void get_second_page(int num){
     }
 
 }
+void get_third_page(){
+    system("python /home/pbh7080/team10/LCD_control.py third");
+
+}
 void get_temp_page(int setter, int cur){
     char command[60];
     char* prefix = "python /home/pbh7080/team10/LCD_control.py Temp ";
@@ -140,6 +147,14 @@ void get_soil_page(int setter, int cur){
     snprintf(command,sizeof(command),"%s%d %d",prefix,cur,setter);
     system(command);
 }
+void get_water_page(int setter, int cur){
+    char command[60];
+    char* prefix = "python /home/pbh7080/team10/LCD_control.py Water ";
+    snprintf(command,sizeof(command),"%s%d %d",prefix,cur,setter);
+    system(command);
+}
+
+
 char* sliceString(const char *original, int start, int end, char *result) {
     int length = strlen(original);
 
@@ -156,7 +171,7 @@ char* sliceString(const char *original, int start, int end, char *result) {
     result[j] = '\0';
     return result;
 }
-int do_action(int direction, int state, int temp_setter, int light_setter, int humid_setter, int soil_setter, int temp_cur, int light_cur,int humid_cur,int soil_cur){
+int do_action(int direction, int state, int temp_setter, int light_setter, int humid_setter, int soil_setter, int water_setter, int temp_cur, int light_cur,int humid_cur,int soil_cur,int water_cur){
     switch (state){
         case FIRST1:
             if(direction == RIGHT){
@@ -168,8 +183,8 @@ int do_action(int direction, int state, int temp_setter, int light_setter, int h
                 state = FIRST2;
             }
             else if(direction == UP){
-                get_second_page(2);
-                state=SECOND2;
+                get_third_page();
+                state=THIRD;
             }
             break;
         case FIRST2:
@@ -206,12 +221,26 @@ int do_action(int direction, int state, int temp_setter, int light_setter, int h
                 state=SOIL;
             }
             else if (direction ==DOWN){
-                get_first_page(1);
-                state=FIRST1;
+                get_third_page();
+                state=THIRD;
             }
             else if(direction == UP){
                 get_second_page(1);
                 state=SECOND1;
+            }     
+            break;
+        case THIRD:
+            if(direction == RIGHT){
+                get_water_page(water_setter,water_cur);
+                state=WATER;
+            }
+            else if (direction ==DOWN){
+                get_first_page(1);
+                state=FIRST1;
+            }
+            else if(direction == UP){
+                get_second_page(2);
+                state=SECOND2;
             }     
             break;
         case TEMP:
@@ -251,6 +280,15 @@ int do_action(int direction, int state, int temp_setter, int light_setter, int h
             }
             else if (direction ==DOWN || direction== UP){
                 get_soil_page(soil_setter,soil_cur);
+            }
+            break;
+        case WATER:
+            if(direction == LEFT){
+                get_third_page();
+                state=THIRD;
+            }
+            else if (direction ==DOWN || direction== UP){
+                get_water_page(water_setter,water_cur);
             }
             break;
     }
