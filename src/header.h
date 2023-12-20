@@ -14,6 +14,11 @@
 #include <unistd.h>
 #include <pthread.h>
 
+
+#include <sys/ioctl.h>
+#include <linux/i2c-dev.h>
+#include <i2c/smbus.h>
+
 #define MAX_LEN 1024
 
 #define FIRST1 0
@@ -44,7 +49,118 @@ typedef struct params
     Pipe* fd;
 }Params;//스레드에 인자전달을 위한 구조체 선언
 
+/*LCD Handling*/
+#define LCD_I2C_ADDR 0x27
 
+// Define some device constants
+#define LCD_WIDTH 16   // Maximum characters per line
+#define LCD_CLEARDISPLAY 0x01
+#define LCD_RETURNHOME 0x02
+// Define some LCD Device constants
+#define LCD_CHR 1  // Character mode
+#define LCD_CMD 0  // Command mode
+
+#define LCD_LINE_1 0x80  // LCD RAM address for the 1st line
+#define LCD_LINE_2 0xC0  // LCD RAM address for the 2nd line
+#define LCD_LINE_3 0x94  // LCD RAM address for the 3rd line
+#define LCD_LINE_4 0xD4  // LCD RAM address for the 4th line
+
+#define LCD_BACKLIGHT 0x08  // On
+// #define LCD_BACKLIGHT 0x00  // Off
+
+#define ENABLE 0b00000100  // Enable bit
+
+// Timing constants
+#define E_PULSE 0.0005
+#define E_DELAY 0.0005
+
+int i2c_fd;
+const char *temp_prompt = "Temperature";
+const char *light_prompt = "Light";
+const char *humidity_prompt = "Humidity";
+const char *soil_prompt = "Soil_Humidity";
+const char *water_prompt = "Water_Line";
+const char *blank = "  ";
+const char *arrow = "> ";
+const char *set_to = "Set to > ";
+const char *endpar = "-Parameter end-";
+
+void lcd_byte(int bits, int mode) {
+    // Send byte to data pins
+    // bits = data
+    // mode = 1 for character
+    //        0 for command
+
+    int bits_high = mode | (bits & 0xF0);
+    int bits_low = mode | ((bits << 4) & 0xF0);
+
+    i2c_smbus_write_byte_data(i2c_fd, bits_high, LCD_BACKLIGHT);
+    usleep(1000);
+    i2c_smbus_write_byte_data(i2c_fd, bits_high | ENABLE, LCD_BACKLIGHT);
+    usleep(E_PULSE * 1000);
+    i2c_smbus_write_byte_data(i2c_fd, bits_high & ~ENABLE, LCD_BACKLIGHT);
+    usleep(1000);
+
+    i2c_smbus_write_byte_data(i2c_fd, bits_low, LCD_BACKLIGHT);
+    usleep(1000);
+    i2c_smbus_write_byte_data(i2c_fd, bits_low | ENABLE, LCD_BACKLIGHT);
+    usleep(E_PULSE * 1000);
+    i2c_smbus_write_byte_data(i2c_fd, bits_low & ~ENABLE, LCD_BACKLIGHT);
+    usleep(1000);
+}
+
+void lcd_init() {
+    i2c_fd = open("/dev/i2c-1", O_RDWR);
+    if (i2c_fd < 0) {
+        perror("Failed to open the I2C bus");
+        exit(1);
+    }
+
+    if (ioctl(i2c_fd, I2C_SLAVE, LCD_I2C_ADDR) < 0) {
+        perror("Failed to acquire bus access and/or talk to slave");
+        exit(1);
+    }
+
+    lcd_byte(0x33, LCD_CMD);  // Initialize
+    lcd_byte(0x32, LCD_CMD);  // Initialize
+    lcd_byte(0x06, LCD_CMD);  // Cursor move direction
+    lcd_byte(0x0C, LCD_CMD);  // Display On, Cursor Off, Blink Off
+    lcd_byte(0x28, LCD_CMD);  // Data length, number of lines, font size
+    lcd_byte(0x01, LCD_CMD);  // Clear display
+    usleep(E_DELAY * 1000);
+}
+
+void lcd_string(char *message, int line) {
+    switch (line) {
+        case 1:
+            lcd_byte(LCD_LINE_1, LCD_CMD);
+            break;
+        case 2:
+            lcd_byte(LCD_LINE_2, LCD_CMD);
+            break;
+        case 3:
+            lcd_byte(LCD_LINE_3, LCD_CMD);
+            break;
+        case 4:
+            lcd_byte(LCD_LINE_4, LCD_CMD);
+            break;
+        default:
+            lcd_byte(LCD_LINE_1, LCD_CMD);
+    }
+
+    for (int i = 0; i < LCD_WIDTH; i++) {
+        if (*message) {
+            lcd_byte(*message++, LCD_CHR);
+        } else {
+            break;
+        }
+    }
+}
+void clear_LCD(){
+    lcd_byte(LCD_CLEARDISPLAY, LCD_CMD);
+    lcd_byte(LCD_RETURNHOME, LCD_CMD);
+}
+/*LCD Handling*/
 
 void errhandle(char *errmsg){
 	fputs(errmsg, stderr);
@@ -102,56 +218,120 @@ int read_button(int direction){
 }
 
 void get_first_page(int num){
+    clear_LCD();
+    char concat_string_1[30];
+    char concat_string_2[30]; 
+
     if (num==1){
-        system("python /home/pbh7080/team10/LCD_control.py first 1");
+        strcpy(concat_string_1, arrow);
+        strcat(concat_string_1, temp_prompt);
+        lcd_string(concat_string_1,1);
+        strcpy(concat_string_2, blank);
+        strcat(concat_string_2, light_prompt);
+        lcd_string(concat_string_2,2);
     }
     else{
-        system("python /home/pbh7080/team10/LCD_control.py first 2");
+        strcpy(concat_string_1, blank);
+        strcat(concat_string_1, temp_prompt);
+        lcd_string(concat_string_1,1);
+        strcpy(concat_string_2, arrow);
+        strcat(concat_string_2, light_prompt);
+        lcd_string(concat_string_2,2);
     }
 
 }
 void get_second_page(int num){
+    clear_LCD();
+    char concat_string_1[30];
+    char concat_string_2[30]; 
+
     if (num==1){
-        system("python /home/pbh7080/team10/LCD_control.py second 1");
+        strcpy(concat_string_1, arrow);
+        strcat(concat_string_1, humidity_prompt);
+        lcd_string(concat_string_1,1);
+        strcpy(concat_string_2, blank);
+        strcat(concat_string_2, soil_prompt);
+        lcd_string(concat_string_2,2);
     }
     else{
-        system("python /home/pbh7080/team10/LCD_control.py second 2");
+        strcpy(concat_string_1, blank);
+        strcat(concat_string_1, humidity_prompt);
+        lcd_string(concat_string_1,1);
+        strcpy(concat_string_2, arrow);
+        strcat(concat_string_2, soil_prompt);
+        lcd_string(concat_string_2,2);
     }
 
 }
 void get_third_page(){
-    system("python /home/pbh7080/team10/LCD_control.py third");
+    clear_LCD();
+    char concat_string_1[30];
+
+    strcpy(concat_string_1, arrow);
+    strcat(concat_string_1, water_prompt);
+    lcd_string(concat_string_1,1);
+
+    lcd_string(endpar,2);
+
 
 }
 void get_temp_page(int setter, int cur){
-    char command[60];
-    char* prefix = "python /home/pbh7080/team10/LCD_control.py Temp ";
-    snprintf(command,sizeof(command),"%s%d %d",prefix,cur,setter);
-    system(command);
+
+    clear_LCD();
+    char concat_string_1[30];
+    char* cur_prompt = "Cur Temp=";
+    snprintf(concat_string_1,sizeof(concat_string_1),"%s%d",cur_prompt,cur);
+    lcd_string(concat_string_1,1);
+
+    char concat_string_2[30];
+    snprintf(concat_string_2,sizeof(concat_string_2),"%s%d",set_to,setter);
+    lcd_string(concat_string_2,2);
+
+
 }
 void get_light_page(int setter, int cur){
-    char command[60];
-    char* prefix = "python /home/pbh7080/team10/LCD_control.py Light ";
-    snprintf(command,sizeof(command),"%s%d %d",prefix,cur,setter);
-    system(command);
+    clear_LCD();
+    char concat_string_1[30];
+    char* cur_prompt = "Cur Light=";
+    snprintf(concat_string_1,sizeof(concat_string_1),"%s%d",cur_prompt,cur);
+    lcd_string(concat_string_1,1);
+
+    char concat_string_2[30];
+    snprintf(concat_string_2,sizeof(concat_string_2),"%s%d",set_to,setter);
+    lcd_string(concat_string_2,2);
 }
 void get_humid_page(int setter, int cur){
-    char command[60];
-    char* prefix = "python /home/pbh7080/team10/LCD_control.py Humid ";
-    snprintf(command,sizeof(command),"%s%d %d",prefix,cur,setter);
-    system(command);
+    clear_LCD();
+    char concat_string_1[30];
+    char* cur_prompt = "Cur Humid=";
+    snprintf(concat_string_1,sizeof(concat_string_1),"%s%d",cur_prompt,cur);
+    lcd_string(concat_string_1,1);
+
+    char concat_string_2[30];
+    snprintf(concat_string_2,sizeof(concat_string_2),"%s%d",set_to,setter);
+    lcd_string(concat_string_2,2);
 }
 void get_soil_page(int setter, int cur){
-    char command[60];
-    char* prefix = "python /home/pbh7080/team10/LCD_control.py Soil ";
-    snprintf(command,sizeof(command),"%s%d %d",prefix,cur,setter);
-    system(command);
+    clear_LCD();
+    char concat_string_1[30];
+    char* cur_prompt = "Cur Soil_H=";
+    snprintf(concat_string_1,sizeof(concat_string_1),"%s%d",cur_prompt,cur);
+    lcd_string(concat_string_1,1);
+
+    char concat_string_2[30];
+    snprintf(concat_string_2,sizeof(concat_string_2),"%s%d",set_to,setter);
+    lcd_string(concat_string_2,2);
 }
 void get_water_page(int setter, int cur){
-    char command[60];
-    char* prefix = "python /home/pbh7080/team10/LCD_control.py Water ";
-    snprintf(command,sizeof(command),"%s%d %d",prefix,cur,setter);
-    system(command);
+    clear_LCD();
+    char concat_string_1[30];
+    char* cur_prompt = "Cur Water=";
+    snprintf(concat_string_1,sizeof(concat_string_1),"%s%d",cur_prompt,cur);
+    lcd_string(concat_string_1,1);
+
+    char concat_string_2[30];
+    snprintf(concat_string_2,sizeof(concat_string_2),"%s%d",set_to,setter);
+    lcd_string(concat_string_2,2);
 }
 
 
