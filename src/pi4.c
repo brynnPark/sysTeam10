@@ -195,6 +195,7 @@ void* sendmsg_to_pi1 (void *arg){
 int main(int argc,char* argv[]){
     
     initialize_button();
+    lcd_init();
     get_first_page(1);
     pid_t pid;
 
