@@ -24,23 +24,23 @@
 #define VALUE_MAX 40
 #define DIRECTION_MAX 128
 
-/* server로 부터 받는 data 목록
+/* pi4로 부터 받는 data 목록
    온도조절: on_H_off_F, off_H_on_F 
    워터펌프 조절: on_WP, off_WP 
    가습기 조절: on_HUMI, off_HUMI */
 
 typedef struct s_sock_data {
-	char name[20];
-	int sock;
+  char name[20];
+  int sock;
 
 }Sock_data;
 
-static char read_data[40]; 
+static char read_data[1024]; 
 
 void error_handling(char *message) {
-	fputs(message, stderr);
-	fputc('\n', stderr);
-	exit(1);
+  fputs(message, stderr);
+  fputc('\n', stderr);
+  exit(1);
 }
 
 static int GPIOExport(int pin) {
@@ -170,7 +170,7 @@ int main(int argc, char* argv[]) {
   serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
   serv_addr.sin_port = htons(atoi(argv[1]));
 
-	// bind
+  // bind
   if (bind(serv_sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1) 
 	error_handling("bind() error");
 
@@ -180,7 +180,7 @@ int main(int argc, char* argv[]) {
   clnt_addr_size = sizeof(clnt_addr);
   clnt_sock = accept(serv_sock, (struct sockaddr *)&clnt_addr, &clnt_addr_size);
   printf("Connection established\n");
-		
+
 
   if (GPIOExport(POUT_R1) == -1||GPIOExport(POUT_R2) == -1||GPIOExport(POUT_F1) == -1||GPIOExport(POUT_F2) == -1||GPIOExport(POUT_W1) == -1||GPIOExport(POUT_W2) == -1) {
     return 1;
@@ -234,7 +234,6 @@ int main(int argc, char* argv[]) {
 
 }
 
-// read_data값이 바뀌는 구간이 Critical Section이므로 mutex look으로 dead lock해결
 pthread_mutex_t data_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void* read_data_from_server(void* arg){
@@ -244,15 +243,12 @@ void* read_data_from_server(void* arg){
   fd_set read_fds;
   while(1){
     
-    /* select함수로 server의 상태를 계속 확인
-		   만약 server가 종료되면 str_len에 0이 적힐 것이다.*/
-		FD_ZERO(&read_fds);
-		FD_SET(data->sock, &read_fds);
-
-		select(data->sock + 1, &read_fds, NULL, NULL, NULL);
+    FD_ZERO(&read_fds);
+    FD_SET(data->sock, &read_fds);
+    select(data->sock + 1, &read_fds, NULL, NULL, NULL);
 
     //get server data
-    str_len = recv(data->sock,read_data,40,0);
+    str_len = recv(data->sock,read_data,1024,0);
     if(str_len<=0){
       close(data->sock);
       unexport();
